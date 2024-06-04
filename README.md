@@ -1,11 +1,4 @@
-Sure! I'll guide you through creating a simple React Native app that uses SQLite for local storage. This app will have basic functionalities like adding, displaying, and deleting items from a database.
-
-### Prerequisites
-1. Node.js installed
-2. React Native CLI installed
-3. Android Studio/Xcode set up for emulator or a physical device
-
-### Step-by-Step Guide
+## Sql in React Native:
 
 #### Step 1: Setting up the React Native Project
 First, create a new React Native project:
