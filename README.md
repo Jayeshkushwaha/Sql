@@ -1,79 +1,255 @@
-This is a new [**React Native**](https://reactnative.dev) project, bootstrapped using [`@react-native-community/cli`](https://github.com/react-native-community/cli).
+Sure! I'll guide you through creating a simple React Native app that uses SQLite for local storage. This app will have basic functionalities like adding, displaying, and deleting items from a database.
 
-# Getting Started
+### Prerequisites
+1. Node.js installed
+2. React Native CLI installed
+3. Android Studio/Xcode set up for emulator or a physical device
 
->**Note**: Make sure you have completed the [React Native - Environment Setup](https://reactnative.dev/docs/environment-setup) instructions till "Creating a new application" step, before proceeding.
+### Step-by-Step Guide
 
-## Step 1: Start the Metro Server
-
-First, you will need to start **Metro**, the JavaScript _bundler_ that ships _with_ React Native.
-
-To start Metro, run the following command from the _root_ of your React Native project:
-
-```bash
-# using npm
-npm start
-
-# OR using Yarn
-yarn start
-```
-
-## Step 2: Start your Application
-
-Let Metro Bundler run in its _own_ terminal. Open a _new_ terminal from the _root_ of your React Native project. Run the following command to start your _Android_ or _iOS_ app:
-
-### For Android
+#### Step 1: Setting up the React Native Project
+First, create a new React Native project:
 
 ```bash
-# using npm
-npm run android
-
-# OR using Yarn
-yarn android
+npx react-native init SQLiteDemo
+cd SQLiteDemo
 ```
 
-### For iOS
+#### Step 2: Installing Dependencies
+Install the necessary packages for SQLite:
 
 ```bash
-# using npm
-npm run ios
-
-# OR using Yarn
-yarn ios
+npm install react-native-sqlite-storage
 ```
 
-If everything is set up _correctly_, you should see your new app running in your _Android Emulator_ or _iOS Simulator_ shortly provided you have set up your emulator/simulator correctly.
+Link the SQLite storage package (for React Native versions below 0.60, use `react-native link` instead):
 
-This is one way to run your app — you can also run it directly from within Android Studio and Xcode respectively.
+```bash
+npx pod-install
+```
 
-## Step 3: Modifying your App
+#### Step 3: Setting up SQLite
+Create a `database.js` file in the root of your project to handle SQLite operations:
 
-Now that you have successfully run the app, let's modify it.
+```javascript
+// database.js
+import SQLite from 'react-native-sqlite-storage';
 
-1. Open `App.tsx` in your text editor of choice and edit some lines.
-2. For **Android**: Press the <kbd>R</kbd> key twice or select **"Reload"** from the **Developer Menu** (<kbd>Ctrl</kbd> + <kbd>M</kbd> (on Window and Linux) or <kbd>Cmd ⌘</kbd> + <kbd>M</kbd> (on macOS)) to see your changes!
+const db = SQLite.openDatabase(
+  {
+    name: 'MainDB',
+    location: 'default',
+  },
+  () => {},
+  error => {
+    console.log("ERROR: " + error);
+  }
+);
 
-   For **iOS**: Hit <kbd>Cmd ⌘</kbd> + <kbd>R</kbd> in your iOS Simulator to reload the app and see your changes!
+export const createTable = () => {
+  db.transaction(txn => {
+    txn.executeSql(
+      `CREATE TABLE IF NOT EXISTS Items (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT)`,
+      [],
+      (sqlTxn, res) => {
+        console.log("Table created successfully");
+      },
+      error => {
+        console.log("Error on creating table " + error.message);
+      }
+    );
+  });
+};
 
-## Congratulations! :tada:
+export const getItems = (setItems) => {
+  db.transaction(txn => {
+    txn.executeSql(
+      `SELECT * FROM Items`,
+      [],
+      (sqlTxn, res) => {
+        console.log("Items retrieved successfully");
+        let len = res.rows.length;
 
-You've successfully run and modified your React Native App. :partying_face:
+        if (len > 0) {
+          let results = [];
+          for (let i = 0; i < len; i++) {
+            let item = res.rows.item(i);
+            results.push({ id: item.id, name: item.name });
+          }
+          setItems(results);
+        } else {
+          setItems([]);
+        }
+      },
+      error => {
+        console.log("Error on retrieving items " + error.message);
+      }
+    );
+  });
+};
 
-### Now what?
+export const addItem = (name, getItems) => {
+  db.transaction(txn => {
+    txn.executeSql(
+      `INSERT INTO Items (name) VALUES (?)`,
+      [name],
+      (sqlTxn, res) => {
+        console.log(`${name} item added successfully`);
+        getItems();
+      },
+      error => {
+        console.log("Error on adding item " + error.message);
+      }
+    );
+  });
+};
 
-- If you want to add this new React Native code to an existing application, check out the [Integration guide](https://reactnative.dev/docs/integration-with-existing-apps).
-- If you're curious to learn more about React Native, check out the [Introduction to React Native](https://reactnative.dev/docs/getting-started).
+export const deleteItem = (id, getItems) => {
+  db.transaction(txn => {
+    txn.executeSql(
+      `DELETE FROM Items WHERE id = ?`,
+      [id],
+      (sqlTxn, res) => {
+        console.log(`Item with id ${id} deleted successfully`);
+        getItems();
+      },
+      error => {
+        console.log("Error on deleting item " + error.message);
+      }
+    );
+  });
+};
 
-# Troubleshooting
+export const updateItem = (id, newName, getItems) => {
+  db.transaction(txn => {
+    txn.executeSql(
+      `UPDATE Items SET name = ? WHERE id = ?`,
+      [newName, id],
+      (sqlTxn, res) => {
+        console.log(`Item with id ${id} updated successfully`);
+        getItems();
+      },
+      error => {
+        console.log("Error on updating item " + error.message);
+      }
+    );
+  });
+};
+```
 
-If you can't get this to work, see the [Troubleshooting](https://reactnative.dev/docs/troubleshooting) page.
+#### Step 4: Creating the Main App Component
+Edit `App.js` to include basic CRUD operations:
 
-# Learn More
+```javascript
+// App.js
+import React, { useEffect, useState } from 'react';
+import { SafeAreaView, View, Text, TextInput, Button, FlatList, StyleSheet } from 'react-native';
+import { createTable, getItems, addItem, deleteItem, updateItem } from './database';
 
-To learn more about React Native, take a look at the following resources:
+const App = () => {
+  const [name, setName] = useState('');
+  const [items, setItems] = useState([]);
+  const [editingId, setEditingId] = useState(null);
 
-- [React Native Website](https://reactnative.dev) - learn more about React Native.
-- [Getting Started](https://reactnative.dev/docs/environment-setup) - an **overview** of React Native and how setup your environment.
-- [Learn the Basics](https://reactnative.dev/docs/getting-started) - a **guided tour** of the React Native **basics**.
-- [Blog](https://reactnative.dev/blog) - read the latest official React Native **Blog** posts.
-- [`@facebook/react-native`](https://github.com/facebook/react-native) - the Open Source; GitHub **repository** for React Native.
+  useEffect(() => {
+    createTable();
+    getItems(setItems);
+  }, []);
+
+  const handleAddOrUpdateItem = () => {
+    if (name.length > 0) {
+      if (editingId === null) {
+        addItem(name, () => getItems(setItems));
+      } else {
+        updateItem(editingId, name, () => getItems(setItems));
+        setEditingId(null);
+      }
+      setName('');
+    }
+  };
+
+  const handleEditItem = (item) => {
+    setName(item.name);
+    setEditingId(item.id);
+  };
+
+  const handleDeleteItem = (id) => {
+    deleteItem(id, () => {
+      getItems(setItems);
+      setName('');
+      setEditingId(null);
+    });
+  };
+
+  const renderItem = ({ item }) => (
+    <View style={styles.item}>
+      <Text>{item.name}</Text>
+      <View style={styles.buttons}>
+        <Button title="Edit" onPress={() => handleEditItem(item)} />
+        <Button title="Delete" onPress={() => handleDeleteItem(item.id)} />
+      </View>
+    </View>
+  );
+
+  return (
+    <SafeAreaView style={styles.container}>
+      <TextInput
+        placeholder="Enter item name"
+        value={name}
+        onChangeText={setName}
+        style={styles.input}
+      />
+      <Button
+        title={editingId === null ? "Add Item" : "Update Item"}
+        onPress={handleAddOrUpdateItem}
+      />
+      <FlatList
+        data={items}
+        renderItem={renderItem}
+        keyExtractor={item => item.id.toString()}
+      />
+    </SafeAreaView>
+  );
+};
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    padding: 20,
+  },
+  input: {
+    borderWidth: 1,
+    borderColor: '#000',
+    padding: 10,
+    marginBottom: 10,
+  },
+  item: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    padding: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: '#ccc',
+  },
+  buttons: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    width: 100,
+  },
+});
+
+export default App;
+```
+
+#### Step 5: Running the App
+Finally, run your React Native app:
+
+```bash
+npx react-native run-android
+# or
+npx react-native run-ios
+```
+
+This will start the application, where you can add, display, and delete items using SQLite for local storage. 
+
+### Summary
+You now have a basic React Native app using SQLite for local data storage. This setup includes initializing the SQLite database, creating a table, and performing basic CRUD operations.
